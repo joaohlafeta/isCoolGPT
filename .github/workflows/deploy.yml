@@ -1,0 +1,102 @@
+name: CI/CD Pipeline - IsCoolGPT
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: iscoolgpt-repo
+  ECS_SERVICE: iscoolgpt-service
+  ECS_CLUSTER: iscoolgpt-cluster
+  CONTAINER_NAME: iscoolgpt-container
+  CODECOMMIT_REPO_NAME: iscoolgpt-repo 
+
+jobs:
+  # Job 1: Testes e Qualidade
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements.txt
+
+      - name: Rodar Testes Unitários (Pytest)
+        run: |
+          # Adiciona o diretório atual ao caminho do Python para ele achar o 'app'
+          export PYTHONPATH=$PYTHONPATH:.
+          pytest
+
+  # Job 2: Espelhamento e Deploy
+  deploy:
+    needs: tests
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Espelhamento para AWS CodeCommit
+      - name: Mirror to AWS CodeCommit
+        run: |
+          git config --global credential.helper '!aws codecommit credential-helper $@'
+          git config --global credential.UseHttpPath true
+          git remote add codecommit https://git-codecommit.${{ env.AWS_REGION }}.amazonaws.com/v1/repos/${{ env.CODECOMMIT_REPO_NAME }}
+          git push codecommit main:main --force
+
+      # Passos de Deploy (ECR/ECS)
+      - name: Login no Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build e Push da Imagem Docker
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download Task Definition
+        run: |
+          aws ecs describe-task-definition --task-definition iscoolgpt-task --query taskDefinition > task-definition.json
+
+      - name: Atualizar Task Definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy no Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
