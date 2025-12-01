@@ -35,7 +35,6 @@ jobs:
 
       - name: Rodar Testes Unitários (Pytest)
         run: |
-          # Adiciona o diretório atual ao caminho do Python para ele achar o 'app'
           export PYTHONPATH=$PYTHONPATH:.
           pytest
 
@@ -81,9 +80,17 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+      # --- CORREÇÃO DO ERRO 'Unexpected key' ---
       - name: Download Task Definition
         run: |
+          # Baixa a definição da tarefa
           aws ecs describe-task-definition --task-definition iscoolgpt-task --query taskDefinition > task-definition.json
+          
+          # Remove campos novos que a Action antiga não suporta (Limpeza do JSON)
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' task-definition.json > task-definition-cleaned.json
+          
+          # Renomeia o arquivo limpo para o nome original
+          mv task-definition-cleaned.json task-definition.json
 
       - name: Atualizar Task Definition
         id: task-def
