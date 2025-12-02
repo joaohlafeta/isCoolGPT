@@ -116,3 +116,4 @@ O projeto utiliza FastAPI, que gera automaticamente documentação interativa se
 - Credenciais da AWS injetadas via GitHub Secrets no pipeline de CI/CD.
 
 - GOOGLE_API_KEY configurada como variável de ambiente na Task Definition do ECS, sem exposição em código-fonte.
+  
