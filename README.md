@@ -9,7 +9,7 @@ O projeto adota uma arquitetura moderna baseada em **microsserviços**, **contai
 
 - 🎯 **Objetivo**: apoiar estudantes com respostas rápidas e contextualizadas sobre Cloud Computing.  
 - 🏗️ **Back-end**: FastAPI (Python).  
-- 🤖 **IA**: Google Gemini (2.5 Flash / 1.5 Flash).  
+- 🤖 **IA**: Google Gemini (2.5 Flash).  
 - ☁️ **Infraestrutura**: AWS ECS Fargate + ECR + CodeCommit.  
 - 🔁 **CI/CD**: GitHub Actions com deploy automatizado.
 
@@ -80,7 +80,6 @@ O projeto utiliza FastAPI, que gera automaticamente documentação interativa se
 - Método	Endpoint	Descrição
 - GET	/	Interface Web do chat (frontend).
 - GET	/docs	Swagger UI – documentação interativa.
-- GET	/redoc	ReDoc – documentação alternativa em formato de leitura.
 - POST	/ask	Endpoint principal: recebe a pergunta e retorna a resposta.
 📦 Exemplo de payload (POST /ask)
 {
